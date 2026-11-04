@@ -40,14 +40,22 @@ class UserAgent
     make_connection(:delete, ...)
   end
 
+  def self.timeout_from_env(name, default)
+    timeout = ENV[name].presence&.to_i
+    return timeout if timeout&.positive?
+
+    Rails.logger.warn("#{name} is unset or invalid. Falling back to #{default} seconds.")
+    default
+  end
+
   def self.get_http(uri, options)
     http = UserAgent::HttpClient
       .get_client(uri, options)
       .new(uri.host, uri.port)
 
     # Defaults raised for slow links (e.g. OAuth to external IdPs); override globally via ENV, per-request via options. See https://github.com/zammad/zammad/issues/5991
-    http.open_timeout = options[:open_timeout] || ENV.fetch('ZAMMAD_HTTP_OPEN_TIMEOUT', 30).to_i
-    http.read_timeout = options[:read_timeout] || ENV.fetch('ZAMMAD_HTTP_READ_TIMEOUT', 60).to_i
+    http.open_timeout = options[:open_timeout] || timeout_from_env('ZAMMAD_HTTP_OPEN_TIMEOUT', 30)
+    http.read_timeout = options[:read_timeout] || timeout_from_env('ZAMMAD_HTTP_READ_TIMEOUT', 60)
 
     if uri.scheme == 'https'
       http.use_ssl = true
@@ -273,7 +281,7 @@ class UserAgent
   # @option options [String] :user for basic authentication
   # @option options [String] :password for basic authentication
   # @option options [String] :bearer_token for token authentication
-  # @option options [Hash] :log enable logging, use facility: to set logging facility and log_only_on_error: to only log failed requests
+  # @option options [Hash] :log enable logging, use facility: to set logging only on error
   # @option options [String] :proxy address
   # @option options [String] :proxy_no list of address to skip proxy for
   # @option options [String] :proxy_username
